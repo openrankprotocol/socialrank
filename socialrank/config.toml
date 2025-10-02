@@ -1,0 +1,31 @@
+# Discord Channel Reader Configuration
+
+[settings]
+# Folder where raw message data will be saved
+output_folder = "raw"
+# Number of days to look back for messages (default)
+default_days = 7
+# Maximum messages per channel (optional, set to 0 for no limit)
+max_messages_per_channel = 0
+# Delay between processing channels (seconds)
+channel_delay = 1
+# Delay between processing servers (seconds)
+server_delay = 5
+
+[trust]
+# Trust scoring values
+mention_points = 50      # Points for direct mentions
+reply_points = 40        # Points for replies
+reaction_points = 30     # Points for reactions
+here_points = 10         # Points for @here to everyone
+everyone_points = 10     # Points for @everyone to everyone
+role_points = 10         # Points for @role to role members
+
+[servers]
+# List of Discord server IDs to fetch messages from
+# Add server IDs as strings to avoid integer overflow
+server_ids = [
+    "1021933844481445989",  # Karma3 Labs
+    # "another_server_id_here",
+    # "yet_another_server_id",
+]
