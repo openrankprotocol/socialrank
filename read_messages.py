@@ -50,6 +50,8 @@ class DiscordChannelReader:
 
     def sanitize_filename(self, filename):
         """Sanitize server name for use as filename"""
+        # Convert to lowercase and replace whitespace with underscores
+        filename = filename.lower().replace(' ', '_')
         # Remove/replace problematic characters
         invalid_chars = '<>:"/\\|?*'
         for char in invalid_chars:
@@ -60,6 +62,22 @@ class DiscordChannelReader:
         """Generate filename for server data"""
         sanitized_name = self.sanitize_filename(guild.name)
         return f"{sanitized_name}.json"
+
+    def should_exclude_channel(self, channel):
+        """Check if a channel should be excluded based on config settings"""
+        exclusions = self.config.get('exclusions', {})
+
+        # Check channel name exclusions (case-insensitive)
+        exclude_names = [name.lower() for name in exclusions.get('exclude_channel_names', [])]
+        if channel.name.lower() in exclude_names:
+            return True
+
+        # Check channel ID exclusions
+        exclude_ids = exclusions.get('exclude_channel_ids', [])
+        if str(channel.id) in exclude_ids:
+            return True
+
+        return False
 
     async def read_all_channels_in_server(self, guild, days_back=7, max_messages=None):
         """
@@ -96,6 +114,12 @@ class DiscordChannelReader:
             logger.info(f"\n--- Processing channel #{channel.name} ({i}/{len(guild.text_channels)}) ---")
 
             try:
+                # Check if channel should be excluded
+                if self.should_exclude_channel(channel):
+                    logger.warning(f"Skipping #{channel.name} - excluded by configuration")
+                    skipped_channels += 1
+                    continue
+
                 # Check permissions
                 if not channel.permissions_for(guild.me).read_message_history:
                     logger.warning(f"Skipping #{channel.name} - no read message history permission")

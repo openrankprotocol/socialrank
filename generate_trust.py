@@ -190,8 +190,10 @@ class TrustCalculator:
             relationship_count = 0
 
             for giver_id, trust_dict in server_trust_data.items():
+                giver_username = self.user_info.get(giver_id, {}).get('username', f'user_{giver_id}')
                 for receiver_id, trust_value in trust_dict.items():
-                    csv_lines.append(f"{giver_id},{receiver_id},{trust_value}")
+                    receiver_username = self.user_info.get(receiver_id, {}).get('username', f'user_{receiver_id}')
+                    csv_lines.append(f"{giver_username},{receiver_username},{trust_value}")
                     relationship_count += 1
 
             with open(output_file, 'w', encoding='utf-8') as f:

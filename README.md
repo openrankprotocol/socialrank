@@ -67,13 +67,13 @@ Trust scores saved to `./trust/` folder with one CSV file per server:
 Each CSV file has format:
 ```csv
 i,j,v
-user_id_1,user_id_2,150
-user_id_1,user_id_3,80
+alice,bob,150
+alice,charlie,80
 ```
 
 Where:
-- `i` = user giving trust
-- `j` = user receiving trust
+- `i` = username giving trust
+- `j` = username receiving trust  
 - `v` = trust value (sum of all interactions)
 
 ## Trust Scoring System

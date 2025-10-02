@@ -4,13 +4,28 @@
 # Folder where raw message data will be saved
 output_folder = "raw"
 # Number of days to look back for messages (default)
-default_days = 7
+default_days = 365
 # Maximum messages per channel (optional, set to 0 for no limit)
-max_messages_per_channel = 0
+max_messages_per_channel = 10000
 # Delay between processing channels (seconds)
 channel_delay = 1
 # Delay between processing servers (seconds)
 server_delay = 5
+
+[exclusions]
+# Channels to exclude from message collection
+exclude_channel_names = [
+    "bot-commands",
+    "admin-only",
+    "private-staff",
+    # Add channel names to exclude (case-insensitive)
+]
+
+# Channels to exclude by ID
+exclude_channel_ids = [
+    "1044339903535788133", # dev-updates
+    "1138522204364099634", # pager-duty
+]
 
 [trust]
 # Trust scoring values
