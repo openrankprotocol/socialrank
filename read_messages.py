@@ -67,11 +67,6 @@ class DiscordChannelReader:
         """Check if a channel should be excluded based on config settings"""
         exclusions = self.config.get('exclusions', {})
 
-        # Check channel name exclusions (case-insensitive)
-        exclude_names = [name.lower() for name in exclusions.get('exclude_channel_names', [])]
-        if channel.name.lower() in exclude_names:
-            return True
-
         # Check channel ID exclusions
         exclude_ids = exclusions.get('exclude_channel_ids', [])
         if str(channel.id) in exclude_ids:
