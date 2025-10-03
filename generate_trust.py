@@ -165,6 +165,14 @@ class TrustCalculator:
                         if member_id != author_id and not member_is_bot:
                             server_trust_scores[author_id][member_id] += self.scores['role']
 
+                # 5. Process reactions (30 points each)
+                for reaction in message['reactions']:
+                    for reaction_user in reaction.get('users', []):
+                        reactor_id = reaction_user['id']
+                        # Skip if reactor is bot or same as message author
+                        if not reaction_user['bot'] and reactor_id != author_id:
+                            server_trust_scores[reactor_id][author_id] += self.scores['reaction']
+
         # Save server-specific trust data
         output_file = self.save_trust_csv_for_server(server_name, server_trust_scores)
 

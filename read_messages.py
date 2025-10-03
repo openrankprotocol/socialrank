@@ -214,12 +214,7 @@ class DiscordChannelReader:
                             'timestamp': embed.timestamp.isoformat() if embed.timestamp else None
                         } for embed in message.embeds
                     ],
-                    'reactions': [
-                        {
-                            'emoji': str(reaction.emoji),
-                            'count': reaction.count
-                        } for reaction in message.reactions
-                    ],
+                    'reactions': await self.get_reaction_users(message),
                     'pinned': message.pinned,
                     'mention_everyone': message.mention_everyone,
                     'mentions': [str(user.id) for user in message.mentions],
@@ -240,6 +235,36 @@ class DiscordChannelReader:
         except Exception as e:
             logger.error(f"Error reading messages from #{channel.name}: {str(e)}")
             return []
+
+    async def get_reaction_users(self, message):
+        """Get users who reacted to a message"""
+        reactions_data = []
+
+        for reaction in message.reactions:
+            try:
+                # Get users who made this reaction
+                users = []
+                async for user in reaction.users():
+                    users.append({
+                        'id': str(user.id),
+                        'username': user.name,
+                        'bot': user.bot
+                    })
+
+                reactions_data.append({
+                    'emoji': str(reaction.emoji),
+                    'count': reaction.count,
+                    'users': users
+                })
+            except Exception as e:
+                # If we can't get reaction users, fall back to count only
+                reactions_data.append({
+                    'emoji': str(reaction.emoji),
+                    'count': reaction.count,
+                    'users': []
+                })
+
+        return reactions_data
 
     def save_server_data(self, server_data, guild, days_back):
         """Save server data to file"""
