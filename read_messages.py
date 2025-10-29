@@ -99,6 +99,9 @@ class DiscordChannelReader:
             'channels': {}
         }
 
+        # Track unique users for username-to-ID mapping
+        unique_users = {}
+
         total_messages = 0
         successful_channels = 0
         skipped_channels = 0
@@ -127,7 +130,7 @@ class DiscordChannelReader:
                     continue
 
                 # Read messages from this channel
-                messages = await self.read_single_channel(channel, days_back, max_messages)
+                messages = await self.read_single_channel(channel, days_back, max_messages, unique_users)
 
                 # Store channel info and messages
                 channel_data = {
@@ -167,18 +170,37 @@ class DiscordChannelReader:
 
         logger.info(f"\n🎉 {guild.name} summary: {total_messages} total messages from {successful_channels}/{len(guild.text_channels)} channels")
 
+        # Add unique users to server data
+        all_server_data['unique_users'] = unique_users
+
         return all_server_data
 
-    async def read_single_channel(self, channel, days_back=7, max_messages=None):
+    async def read_single_channel(self, channel, days_back=7, max_messages=None, unique_users=None):
         """
         Read messages from a single channel object
         """
+        if unique_users is None:
+            unique_users = {}
+
         try:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
             messages_data = []
             message_count = 0
 
             async for message in channel.history(after=cutoff_date, limit=max_messages):
+                # Track author
+                unique_users[str(message.author.id)] = message.author.name
+
+                # Track mentioned users
+                for user in message.mentions:
+                    unique_users[str(user.id)] = user.name
+
+                # Track reaction users
+                reactions_with_users = await self.get_reaction_users(message)
+                for reaction in reactions_with_users:
+                    for user in reaction.get('users', []):
+                        unique_users[str(user['id'])] = user['username']
+
                 message_data = {
                     'id': str(message.id),
                     'author': {
@@ -209,7 +231,7 @@ class DiscordChannelReader:
                             'timestamp': embed.timestamp.isoformat() if embed.timestamp else None
                         } for embed in message.embeds
                     ],
-                    'reactions': await self.get_reaction_users(message),
+                    'reactions': reactions_with_users,
                     'pinned': message.pinned,
                     'mention_everyone': message.mention_everyone,
                     'mentions': [str(user.id) for user in message.mentions],
@@ -271,9 +293,36 @@ class DiscordChannelReader:
                 json.dump(server_data, f, indent=2, ensure_ascii=False)
 
             logger.info(f"💾 Server data saved to {filepath}")
+
+            # Also save username-to-ID mapping
+            self.save_user_ids_mapping(server_data, guild)
+
             return filepath
         except Exception as e:
             logger.error(f"Error saving server data: {str(e)}")
+            return None
+
+    def save_user_ids_mapping(self, server_data, guild):
+        """Save username to user ID mapping CSV"""
+        try:
+            sanitized_name = self.sanitize_filename(guild.name)
+            csv_filename = f"user_ids_{sanitized_name}.csv"
+            csv_filepath = self.output_folder / csv_filename
+
+            unique_users = server_data.get('unique_users', {})
+
+            with open(csv_filepath, 'w', encoding='utf-8') as f:
+                f.write('username,user_id\n')
+                for user_id, username in unique_users.items():
+                    # Escape commas in usernames by wrapping in quotes
+                    if ',' in username:
+                        username = f'"{username}"'
+                    f.write(f'{username},{user_id}\n')
+
+            logger.info(f"💾 User IDs mapping saved to {csv_filepath}")
+            return csv_filepath
+        except Exception as e:
+            logger.error(f"Error saving user IDs mapping: {str(e)}")
             return None
 
     async def process_servers(self, server_ids=None, days_back=None, max_messages=None):

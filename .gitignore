@@ -2,5 +2,6 @@ seed/**
 trust/**
 raw/**
 scores/**
+output/**
 
 .env
