@@ -6,7 +6,7 @@ output_folder = "raw"
 # Number of days to look back for messages (default)
 default_days = 730
 # Maximum messages per channel (optional, set to 0 for no limit)
-max_messages_per_channel = 10000
+max_messages_per_channel = 20000
 # Delay between processing channels (seconds)
 channel_delay = 1
 # Delay between processing servers (seconds)
@@ -17,6 +17,13 @@ server_delay = 5
 exclude_channel_ids = [
     "1044339903535788133", # dev-updates
     "1138522204364099634", # pager-duty
+    "1347324850473140255", # verify-here
+    "1350239336448135250", # start-here
+    "1350252930804220008", # official-links
+    "1350247314547146933", # faq
+    "1350256261626724383", # roles
+    "1210503450119512065", # rules
+    "1358758724013002874", # pledge
 ]
 
 [trust]
@@ -33,6 +40,5 @@ role_points = 10         # Points for @role to role members
 # Add server IDs as strings to avoid integer overflow
 server_ids = [
     "1021933844481445989",  # Karma3 Labs
-    # "another_server_id_here",
-    # "yet_another_server_id",
+    "1210468736205852672", # Ritual
 ]

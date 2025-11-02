@@ -106,28 +106,50 @@ class DiscordChannelReader:
         successful_channels = 0
         skipped_channels = 0
 
-        logger.info(f"Processing {len(guild.text_channels)} channels in {guild.name}")
+        # First, check channel access for all channels
+        accessible_channels = []
+        logger.info(f"Checking access to {len(guild.text_channels)} channels in {guild.name}")
 
-        for i, channel in enumerate(guild.text_channels, 1):
-            logger.info(f"\n--- Processing channel #{channel.name} ({i}/{len(guild.text_channels)}) ---")
+        for channel in guild.text_channels:
+            permissions = channel.permissions_for(guild.me)
+
+            # Check key permissions for reading messages
+            can_view = permissions.view_channel
+            can_read_history = permissions.read_message_history
+
+            if can_view:
+                # Try channels with view permission, even without explicit read_message_history
+                if not self.should_exclude_channel(channel):
+                    accessible_channels.append(channel)
+                    if can_read_history:
+                        logger.debug(f"✅ #{channel.name} - ACCESSIBLE")
+                    else:
+                        logger.debug(f"⚠️ #{channel.name} - VIEW ONLY (will attempt)")
+                else:
+                    logger.debug(f"⚠️ #{channel.name} - EXCLUDED by configuration")
+                    skipped_channels += 1
+            else:
+                logger.debug(f"❌ #{channel.name} - NO VIEW permission")
+                skipped_channels += 1
+
+        logger.info(f"Found {len(accessible_channels)}/{len(guild.text_channels)} accessible channels")
+
+        if not accessible_channels:
+            logger.warning(f"⚠️ No accessible channels found in {guild.name}")
+            all_server_data['summary'] = {
+                'total_messages': 0,
+                'successful_channels': 0,
+                'skipped_channels': len(guild.text_channels),
+                'total_channels': len(guild.text_channels)
+            }
+            all_server_data['unique_users'] = unique_users
+            return all_server_data
+
+        # Process only accessible channels
+        for i, channel in enumerate(accessible_channels, 1):
+            logger.info(f"\n--- Processing channel #{channel.name} ({i}/{len(accessible_channels)}) ---")
 
             try:
-                # Check if channel should be excluded
-                if self.should_exclude_channel(channel):
-                    logger.warning(f"Skipping #{channel.name} - excluded by configuration")
-                    skipped_channels += 1
-                    continue
-
-                # Check permissions
-                if not channel.permissions_for(guild.me).read_message_history:
-                    logger.warning(f"Skipping #{channel.name} - no read message history permission")
-                    skipped_channels += 1
-                    continue
-
-                if not channel.permissions_for(guild.me).view_channel:
-                    logger.warning(f"Skipping #{channel.name} - no view channel permission")
-                    skipped_channels += 1
-                    continue
 
                 # Read messages from this channel
                 messages = await self.read_single_channel(channel, days_back, max_messages, unique_users)
@@ -153,11 +175,16 @@ class DiscordChannelReader:
                 logger.info(f"✅ #{channel.name}: {len(messages)} messages")
 
                 # Small delay between channels
-                if i < len(guild.text_channels):
+                if i < len(accessible_channels):
                     await asyncio.sleep(self.config['settings'].get('channel_delay', 1))
 
             except Exception as e:
-                logger.error(f"Error reading #{channel.name}: {str(e)}")
+                permissions = channel.permissions_for(guild.me)
+                has_read_history = permissions.read_message_history
+                if not has_read_history:
+                    logger.warning(f"❌ #{channel.name}: Cannot read messages (no read_message_history permission) - {str(e)}")
+                else:
+                    logger.error(f"❌ #{channel.name}: Unexpected error - {str(e)}")
                 skipped_channels += 1
 
         # Add summary to server data
@@ -165,10 +192,11 @@ class DiscordChannelReader:
             'total_messages': total_messages,
             'successful_channels': successful_channels,
             'skipped_channels': skipped_channels,
-            'total_channels': len(guild.text_channels)
+            'total_channels': len(guild.text_channels),
+            'accessible_channels': len(accessible_channels)
         }
 
-        logger.info(f"\n🎉 {guild.name} summary: {total_messages} total messages from {successful_channels}/{len(guild.text_channels)} channels")
+        logger.info(f"\n🎉 {guild.name} summary: {total_messages} total messages from {successful_channels}/{len(accessible_channels)} accessible channels ({len(accessible_channels)}/{len(guild.text_channels)} total)")
 
         # Add unique users to server data
         all_server_data['unique_users'] = unique_users
@@ -187,6 +215,10 @@ class DiscordChannelReader:
             messages_data = []
             message_count = 0
 
+            history_start = asyncio.get_event_loop().time()
+            total_reaction_time = 0.0
+            oldest_message_timestamp = None
+
             async for message in channel.history(after=cutoff_date, limit=max_messages):
                 # Track author
                 unique_users[str(message.author.id)] = message.author.name
@@ -195,8 +227,12 @@ class DiscordChannelReader:
                 for user in message.mentions:
                     unique_users[str(user.id)] = user.name
 
-                # Track reaction users
+                # Track reaction users with timing
+                reaction_start = asyncio.get_event_loop().time()
                 reactions_with_users = await self.get_reaction_users(message)
+                reaction_end = asyncio.get_event_loop().time()
+                total_reaction_time += (reaction_end - reaction_start)
+
                 for reaction in reactions_with_users:
                     for user in reaction.get('users', []):
                         unique_users[str(user['id'])] = user['username']
@@ -243,9 +279,28 @@ class DiscordChannelReader:
                 messages_data.append(message_data)
                 message_count += 1
 
+                # Track oldest message timestamp
+                if oldest_message_timestamp is None or message.created_at < oldest_message_timestamp:
+                    oldest_message_timestamp = message.created_at
+
                 # Log progress for large channels
-                if message_count % 500 == 0:
-                    logger.info(f"  ... {message_count} messages processed")
+                if message_count % 500 == 0 and message_count > 0:
+                    elapsed = asyncio.get_event_loop().time() - history_start
+                    avg_per_msg = elapsed / message_count
+                    logger.info(f"     📊 Progress: {message_count} messages processed in {elapsed:.2f}s (avg {avg_per_msg:.3f}s/msg)")
+
+
+            history_end = asyncio.get_event_loop().time()
+            total_time = history_end - history_start
+            if message_count > 0:
+                logger.info(f"     ✅ Completed: {message_count} messages in {total_time:.2f}s")
+                if total_reaction_time > 0.5:  # Only show if reactions took significant time
+                    logger.info(f"     ⏰ Total reaction processing time: {total_reaction_time:.2f}s")
+                if oldest_message_timestamp:
+                    logger.info(f"     📅 Oldest message: {oldest_message_timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            else:
+                logger.info(f"     ⚪ No messages found in time range")
+
 
             return messages_data
 
@@ -256,6 +311,9 @@ class DiscordChannelReader:
     async def get_reaction_users(self, message):
         """Get users who reacted to a message"""
         reactions_data = []
+
+        if not message.reactions:
+            return reactions_data
 
         for reaction in message.reactions:
             try:

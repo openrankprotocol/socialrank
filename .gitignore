@@ -3,5 +3,6 @@ trust/**
 raw/**
 scores/**
 output/**
+tmp/**
 
 .env

@@ -158,57 +158,36 @@ def apply_quantile_transformation(df):
 
 def load_user_ids_mapping(scores_file):
     """
-    Load username to user ID mapping from raw/user_ids_[server_name].csv
+    Load user ID to username mapping from raw/user_ids_[channel_name].csv
 
     Args:
         scores_file (str): Path to the scores CSV file
 
     Returns:
-        dict: Mapping of username to user_id, or empty dict if file not found
+        dict: Mapping of user_id to username, or empty dict if file not found
     """
     try:
-        # Extract server name from scores file
+        # Extract channel name from scores file
         scores_path = Path(scores_file)
-        base_name = scores_path.stem
+        channel_name = scores_path.stem
 
-        # Look for user_ids mapping file in raw/ folder
-        raw_folder = Path("raw")
-        user_ids_files = list(raw_folder.glob(f"user_ids_*.csv"))
+        # Load the corresponding user_ids mapping file
+        mapping_file = Path(f"raw/user_ids_{channel_name}.csv")
 
-        if not user_ids_files:
-            print(f"    Warning: No user_ids mapping files found in raw/ folder")
+        if not mapping_file.exists():
+            print(f"    Warning: {mapping_file} not found")
             return {}
 
-        # Use the first mapping file found (assuming one server at a time)
-        mapping_file = user_ids_files[0]
         print(f"    Loading username mapping from: {mapping_file}")
 
-        username_to_id = {}
-        with open(mapping_file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()[1:]  # Skip header
-            for line in lines:
-                line = line.strip()
-                if line:
-                    # Handle quoted usernames containing commas
-                    if line.startswith('"'):
-                        # Find the closing quote
-                        closing_quote = line.find('"', 1)
-                        if closing_quote != -1:
-                            username = line[1:closing_quote]
-                            user_id = line[closing_quote + 2:]  # Skip quote and comma
-                        else:
-                            continue
-                    else:
-                        parts = line.split(',', 1)
-                        if len(parts) == 2:
-                            username, user_id = parts
-                        else:
-                            continue
+        # Load as dataframe
+        mapping_df = pd.read_csv(mapping_file)
 
-                    username_to_id[username] = user_id
+        # Create dictionary mapping user_id -> username
+        id_to_username = dict(zip(mapping_df['user_id'].astype(str), mapping_df['username']))
 
-        print(f"    Loaded {len(username_to_id)} username mappings")
-        return username_to_id
+        print(f"    Loaded {len(id_to_username)} user ID mappings")
+        return id_to_username
 
     except Exception as e:
         print(f"    Warning: Could not load username mapping: {str(e)}")
@@ -227,10 +206,10 @@ def process_scores(input_file, output_dir, use_user_ids=False):
     # Load the CSV file
     df = pd.read_csv(input_file)
 
-    # Load username to ID mapping if requested
-    username_to_id = {}
-    if use_user_ids:
-        username_to_id = load_user_ids_mapping(input_file)
+    # Load user ID to username mapping (default behavior)
+    id_to_username = {}
+    if not use_user_ids:
+        id_to_username = load_user_ids_mapping(input_file)
 
     # Apply transformations
     transformations = {
@@ -246,14 +225,11 @@ def process_scores(input_file, output_dir, use_user_ids=False):
         # Apply transformation to all users
         users_transformed = transform_func(df.copy())
 
-        # Replace usernames with user IDs in 'i' column if mapping is available and requested
-        if use_user_ids and username_to_id:
-            def replace_username_with_id(username):
-                return username_to_id.get(username, username)
-
-            users_transformed['i'] = users_transformed['i'].apply(replace_username_with_id)
-            replaced_count = sum(1 for username in df['i'] if username in username_to_id)
-            print(f"    Replaced {replaced_count}/{len(df)} usernames with user IDs")
+        # Convert user IDs to usernames by default (unless --use-user-ids flag is passed)
+        if not use_user_ids and id_to_username:
+            users_transformed['i'] = users_transformed['i'].astype(str).map(id_to_username).fillna(users_transformed['i'])
+            replaced_count = sum(1 for user_id in df['i'].astype(str) if user_id in id_to_username)
+            print(f"    Converted {replaced_count}/{len(df)} user IDs to usernames")
 
         # Sort by score (descending)
         users_transformed = users_transformed.sort_values('v', ascending=False)
@@ -280,7 +256,7 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Process score files with transformations')
     parser.add_argument('--use-user-ids', action='store_true',
-                       help='Replace usernames with user IDs from raw/user_ids_*.csv files')
+                       help='Keep user IDs in output (default: convert to usernames)')
     args = parser.parse_args()
     # Define directories
     scores_dir = "scores"
