@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 import shutil
 
+
 def create_backup(csv_path):
     """
     Create a backup of the original CSV file with timestamp.
@@ -23,7 +24,9 @@ def create_backup(csv_path):
         Path: Path to the backup file
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = csv_path.parent / f"{csv_path.stem}_backup_{timestamp}{csv_path.suffix}"
+    backup_path = (
+        csv_path.parent / f"{csv_path.stem}_backup_{timestamp}{csv_path.suffix}"
+    )
 
     try:
         shutil.copy2(csv_path, backup_path)
@@ -32,6 +35,7 @@ def create_backup(csv_path):
     except Exception as e:
         print(f"❌ ERROR: Failed to create backup: {e}")
         sys.exit(1)
+
 
 def process_seed_csv(csv_path, tier_weights=None):
     """
@@ -65,7 +69,7 @@ def process_seed_csv(csv_path, tier_weights=None):
 
     try:
         # First, read the raw file to map original positions to DataFrame indices
-        with open(csv_path, 'r', encoding='utf-8') as f:
+        with open(csv_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         # Map original line numbers to DataFrame row indices
@@ -76,7 +80,7 @@ def process_seed_csv(csv_path, tier_weights=None):
         for line_num, line in enumerate(lines):
             if line_num == 0:  # Skip header
                 continue
-            if line.strip() != '':  # Non-empty line becomes a DataFrame row
+            if line.strip() != "":  # Non-empty line becomes a DataFrame row
                 df_row_to_original_line[df_row] = line_num
                 original_line_to_df_row[line_num] = df_row
                 df_row += 1
@@ -84,7 +88,7 @@ def process_seed_csv(csv_path, tier_weights=None):
         # Find empty lines in original file
         empty_lines = []
         for line_num, line in enumerate(lines):
-            if line_num > 0 and line.strip() == '':  # Skip header, find empty lines
+            if line_num > 0 and line.strip() == "":  # Skip header, find empty lines
                 empty_lines.append(line_num)
 
         # Read the CSV file
@@ -94,7 +98,9 @@ def process_seed_csv(csv_path, tier_weights=None):
         # Convert empty line positions to DataFrame indices for tier boundaries
         tier_boundaries = []
         if len(empty_lines) >= len(tier_weights) - 1:
-            print(f"🔍 Found {len(empty_lines)} separator rows at original lines: {empty_lines}")
+            print(
+                f"🔍 Found {len(empty_lines)} separator rows at original lines: {empty_lines}"
+            )
 
             # First tier: from start to first empty line
             first_empty = empty_lines[0]
@@ -137,7 +143,9 @@ def process_seed_csv(csv_path, tier_weights=None):
                 tier_boundaries.append((last_tier_start, len(df)))
 
         elif len(empty_lines) > 0:
-            print(f"🔍 Found {len(empty_lines)} separator rows - using equal division for remaining tiers")
+            print(
+                f"🔍 Found {len(empty_lines)} separator rows - using equal division for remaining tiers"
+            )
             # Some separators, but not enough - distribute remaining rows
             first_empty = empty_lines[0]
             tier1_end = 0
@@ -158,7 +166,9 @@ def process_seed_csv(csv_path, tier_weights=None):
                 tier_boundaries.append((start_idx, end_idx))
 
             # Last tier gets remaining rows
-            tier_boundaries.append((remaining_start + (remaining_tiers - 1) * rows_per_tier, len(df)))
+            tier_boundaries.append(
+                (remaining_start + (remaining_tiers - 1) * rows_per_tier, len(df))
+            )
 
         else:
             print(f"🔍 Found 0 separator rows - using equal division")
@@ -174,10 +184,10 @@ def process_seed_csv(csv_path, tier_weights=None):
             tier_boundaries.append(((len(tier_weights) - 1) * rows_per_tier, len(df)))
 
         # Initialize or reset the 'v' column (seed score column)
-        if 'v' not in df.columns:
-            df['v'] = 0.0
+        if "v" not in df.columns:
+            df["v"] = 0.0
         else:
-            df['v'] = 0.0
+            df["v"] = 0.0
 
         # Count repositories in each tier and assign scores
         tier_info = []
@@ -195,19 +205,23 @@ def process_seed_csv(csv_path, tier_weights=None):
             tier_weight = tier_weights[tier_idx]
             tier_score = tier_weight / tier_repos if tier_repos > 0 else 0
 
-            tier_info.append({
-                'tier': tier_idx + 1,
-                'repos': tier_repos,
-                'weight': tier_weight,
-                'score_per_repo': tier_score,
-                'start': start,
-                'end': end
-            })
+            tier_info.append(
+                {
+                    "tier": tier_idx + 1,
+                    "repos": tier_repos,
+                    "weight": tier_weight,
+                    "score_per_repo": tier_score,
+                    "start": start,
+                    "end": end,
+                }
+            )
 
         # Display tier distribution
         print(f"📊 Tier distribution:")
         for info in tier_info:
-            print(f"   Tier {info['tier']}: {info['repos']} repositories ({info['weight']*100:.1f}% weight)")
+            print(
+                f"   Tier {info['tier']}: {info['repos']} repositories ({info['weight'] * 100:.1f}% weight)"
+            )
 
         print(f"💯 Score per repository:")
         for info in tier_info:
@@ -215,12 +229,12 @@ def process_seed_csv(csv_path, tier_weights=None):
 
         # Assign scores to each tier
         for info in tier_info:
-            for i in range(info['start'], info['end']):
+            for i in range(info["start"], info["end"]):
                 if i < len(df) and not df.iloc[i].isnull().all():
-                    df.iloc[i, df.columns.get_loc('v')] = info['score_per_repo']
+                    df.iloc[i, df.columns.get_loc("v")] = info["score_per_repo"]
 
         # Verify total score
-        total_score = df['v'].sum()
+        total_score = df["v"].sum()
         expected_total = sum(tier_weights)
         print(f"🎯 Total score: {total_score:.6f} (expected: {expected_total:.6f})")
 
@@ -230,7 +244,7 @@ def process_seed_csv(csv_path, tier_weights=None):
 
         # Show sample of results
         print(f"\n📋 Sample results:")
-        non_zero_scores = df[df['v'] > 0].head(10)
+        non_zero_scores = df[df["v"] > 0].head(10)
         if len(non_zero_scores) > 0:
             first_col = df.columns[0]
             for i, row in non_zero_scores.iterrows():
@@ -242,8 +256,10 @@ def process_seed_csv(csv_path, tier_weights=None):
         print(f"❌ ERROR: Failed to process file: {e}")
         print(f"🔄 Backup file preserved at: {backup_path}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -257,16 +273,19 @@ Examples:
 
 The script expects CSV files with tier sections separated by empty rows.
 A backup file will be created automatically before processing.
-        """)
+        """,
+    )
 
-    parser.add_argument("csv_path",
-                       help="Path to the CSV file to process")
+    parser.add_argument("csv_path", help="Path to the CSV file to process")
 
-    parser.add_argument("--weights", "-w",
-                       nargs="+",
-                       type=float,
-                       default=[0.6, 0.2, 0.2],
-                       help="Weights for each tier (default: 0.6 0.2 0.2)")
+    parser.add_argument(
+        "--weights",
+        "-w",
+        nargs="+",
+        type=float,
+        default=[0.6, 0.2, 0.2],
+        help="Weights for each tier (default: 0.6 0.2 0.2)",
+    )
 
     args = parser.parse_args()
 
@@ -283,6 +302,7 @@ A backup file will be created automatically before processing.
 
     process_seed_csv(args.csv_path, args.weights)
     print("✅ Processing complete!")
+
 
 if __name__ == "__main__":
     main()

@@ -32,6 +32,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class ChannelChecker:
     def __init__(self, token, client_id=None):
         # Set up bot with minimal intents
@@ -39,11 +40,7 @@ class ChannelChecker:
         intents.guilds = True
         intents.guild_messages = True
 
-        self.bot = commands.Bot(
-            command_prefix='!',
-            intents=intents,
-            help_command=None
-        )
+        self.bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
         self.token = token
         self.client_id = client_id
@@ -52,16 +49,16 @@ class ChannelChecker:
     def setup_events(self):
         @self.bot.event
         async def on_ready():
-            logger.info(f'✅ Bot connected as {self.bot.user}')
+            logger.info(f"✅ Bot connected as {self.bot.user}")
             await self.check_all_channels()
             await self.bot.close()
 
     async def check_all_channels(self):
         """Check all channels the bot has access to"""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"DISCORD BOT CHANNEL ACCESS REPORT")
         print(f"Bot: {self.bot.user.name}#{self.bot.user.discriminator}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         total_servers = len(self.bot.guilds)
         total_channels = 0
@@ -87,6 +84,9 @@ class ChannelChecker:
                 can_read_history = permissions.read_message_history
                 can_send = permissions.send_messages
 
+                # Get channel creation time
+                created_at = channel.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+
                 # Status indicator
                 if can_view and can_read_history:
                     status = "✅ ACCESSIBLE"
@@ -97,15 +97,20 @@ class ChannelChecker:
                     status = "❌ NO ACCESS"
 
                 print(f"  {j:2d}. #{channel.name:<20} (ID: {channel.id}) {status}")
+                print(f"      Created: {created_at}")
 
         # Summary
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Total Servers: {total_servers}")
         print(f"Total Text Channels: {total_channels}")
         print(f"Accessible Channels: {accessible_channels}")
-        print(f"Access Rate: {(accessible_channels/total_channels*100):.1f}%" if total_channels > 0 else "Access Rate: 0%")
+        print(
+            f"Access Rate: {(accessible_channels / total_channels * 100):.1f}%"
+            if total_channels > 0
+            else "Access Rate: 0%"
+        )
 
         if accessible_channels == 0:
             print("\n⚠️  WARNING: Bot cannot read messages from any channels!")
@@ -123,9 +128,12 @@ class ChannelChecker:
             logger.error("❌ Invalid bot token")
         except discord.PrivilegedIntentsRequired as e:
             logger.error(f"❌ Privileged intents required: {e}")
-            logger.error("   Enable intents at: https://discord.com/developers/applications/")
+            logger.error(
+                "   Enable intents at: https://discord.com/developers/applications/"
+            )
         except Exception as e:
             logger.error(f"❌ Error: {str(e)}")
+
 
 def load_env_vars():
     """Load environment variables from .env file"""
@@ -133,8 +141,8 @@ def load_env_vars():
         # Load .env file
         load_dotenv()
 
-        token = os.getenv('DISCORD_TOKEN')
-        client_id = os.getenv('DISCORD_CLIENT_ID')
+        token = os.getenv("DISCORD_TOKEN")
+        client_id = os.getenv("DISCORD_CLIENT_ID")
 
         if not token:
             logger.error("❌ DISCORD_TOKEN not found in .env file")
@@ -147,6 +155,7 @@ def load_env_vars():
     except Exception as e:
         logger.error(f"❌ Error loading .env file: {str(e)}")
         return None, None
+
 
 async def main():
     """Main function"""
@@ -166,6 +175,7 @@ async def main():
     # Initialize and run checker
     checker = ChannelChecker(token, client_id)
     await checker.start_and_check()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

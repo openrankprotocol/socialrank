@@ -10,9 +10,7 @@ This script processes score files from the scores/ directory by:
 5. Saving results to output/ directory with transformation suffixes
 
 Transformations available:
-- Square Root: sqrt transformation for gentle compression of higher values
-- Logarithmic: log transformation (first scaled to 1-10 range) to linearize exponential data
-- Quantile: uniform distribution preserving rank order
+- Logarithmic: log transformation (first scaled to 1-100 range) to linearize exponential data
 
 Usage:
     python3 process_scores.py
@@ -26,10 +24,8 @@ Requirements:
 Output:
     - Creates output/ directory if it doesn't exist
     - For each input file (e.g., ai.csv), creates:
-      - {filename}_users_sqrt.csv: Users with square root transformation
-      - {filename}_users_log.csv: Users with logarithmic transformation (scaled 1-10 first)
-      - {filename}_users_quantile.csv: Users with quantile transformation
-    - Scores are normalized (sum to 1) and sorted by score (descending)
+      - {filename}_users_log.csv: Users with logarithmic transformation (scaled 1-100 first)
+    - Scores are normalized and mapped to 0-1000 range, sorted by score (descending)
 """
 
 import os
@@ -42,37 +38,6 @@ import argparse
 from scipy import stats
 
 
-def normalize_scores(df):
-    """
-    Normalize scores so that all scores sum to 1, then map to 100-1000 range
-
-    Args:
-        df (pandas.DataFrame): DataFrame with 'v' column containing scores
-
-    Returns:
-        pandas.DataFrame: DataFrame with normalized scores mapped to 100-1000 range
-    """
-    if len(df) == 0:
-        return df
-
-    df_normalized = df.copy()
-    total_score = df['v'].sum()
-
-    # Avoid division by zero if all scores are zero
-    if total_score == 0:
-        df_normalized['v'] = 1.0 / len(df)  # Equal distribution
-    else:
-        df_normalized['v'] = df['v'] / total_score
-
-    # Map to 100-1000 range
-    df_normalized['v'] = df_normalized['v'] * 900 + 100
-
-    # Round to 2 decimal places
-    df_normalized['v'] = df_normalized['v'].round(2)
-
-    return df_normalized
-
-
 def apply_sqrt_transformation(df):
     """Apply square root transformation to scores"""
     if len(df) == 0:
@@ -81,61 +46,62 @@ def apply_sqrt_transformation(df):
     df_transformed = df.copy()
 
     # Apply sqrt transformation
-    df_transformed['v'] = np.sqrt(df['v'])
+    df_transformed["v"] = np.sqrt(df["v"])
 
     # Normalize to 0-1 range
-    min_val = df_transformed['v'].min()
-    max_val = df_transformed['v'].max()
+    min_val = df_transformed["v"].min()
+    max_val = df_transformed["v"].max()
     if max_val != min_val:
-        df_transformed['v'] = (df_transformed['v'] - min_val) / (max_val - min_val)
+        df_transformed["v"] = (df_transformed["v"] - min_val) / (max_val - min_val)
     else:
-        df_transformed['v'] = 1.0 / len(df)
+        df_transformed["v"] = 1.0 / len(df)
 
     # Map to 100-1000 range
-    df_transformed['v'] = df_transformed['v'] * 900 + 100
+    df_transformed["v"] = df_transformed["v"] * 1000
 
     # Round to 2 decimal places
-    df_transformed['v'] = df_transformed['v'].round(2)
+    df_transformed["v"] = df_transformed["v"].round(2)
 
     return df_transformed
 
 
 def apply_log_transformation(df):
-    """Apply logarithmic transformation to scores (first scale to 1-10, then log)"""
+    """Apply logarithmic transformation to scores (first scale to 1-100, then log)"""
     if len(df) == 0:
         return df
 
     df_transformed = df.copy()
 
     # First normalize to 0-1 range
-    min_val = df['v'].min()
-    max_val = df['v'].max()
+    min_val = df["v"].min()
+    max_val = df["v"].max()
     if max_val != min_val:
-        df_transformed['v'] = (df['v'] - min_val) / (max_val - min_val)
+        df_transformed["v"] = (df["v"] - min_val) / (max_val - min_val)
     else:
-        df_transformed['v'] = 1.0 / len(df)
+        df_transformed["v"] = 1.0 / len(df)
 
-    # Map to 1-10 range
-    df_transformed['v'] = df_transformed['v'] * 9 + 1
+    # Map to 1-100 range
+    df_transformed["v"] = df_transformed["v"] * 99 + 1
 
     # Apply log transformation
-    df_transformed['v'] = np.log(df_transformed['v'])
+    df_transformed["v"] = np.log(df_transformed["v"])
 
     # Normalize back to 0-1 range
-    min_log = df_transformed['v'].min()
-    max_log = df_transformed['v'].max()
+    min_log = df_transformed["v"].min()
+    max_log = df_transformed["v"].max()
     if max_log != min_log:
-        df_transformed['v'] = (df_transformed['v'] - min_log) / (max_log - min_log)
+        df_transformed["v"] = (df_transformed["v"] - min_log) / (max_log - min_log)
     else:
-        df_transformed['v'] = 1.0 / len(df)
+        df_transformed["v"] = 1.0 / len(df)
 
     # Map to 100-1000 range
-    df_transformed['v'] = df_transformed['v'] * 900 + 100
+    df_transformed["v"] = df_transformed["v"] * 1000
 
     # Round to 2 decimal places
-    df_transformed['v'] = df_transformed['v'].round(2)
+    df_transformed["v"] = df_transformed["v"].round(2)
 
     return df_transformed
+
 
 def apply_quantile_transformation(df):
     """Apply quantile-based uniform distribution transformation"""
@@ -145,13 +111,13 @@ def apply_quantile_transformation(df):
     df_transformed = df.copy()
 
     # Use scipy for quantile transformation
-    df_transformed['v'] = stats.rankdata(df['v']) / len(df['v'])
+    df_transformed["v"] = stats.rankdata(df["v"]) / len(df["v"])
 
     # Map to 100-1000 range
-    df_transformed['v'] = df_transformed['v'] * 900 + 100
+    df_transformed["v"] = df_transformed["v"] * 1000
 
     # Round to 2 decimal places
-    df_transformed['v'] = df_transformed['v'].round(2)
+    df_transformed["v"] = df_transformed["v"].round(2)
 
     return df_transformed
 
@@ -184,7 +150,9 @@ def load_user_ids_mapping(scores_file):
         mapping_df = pd.read_csv(mapping_file)
 
         # Create dictionary mapping user_id -> username
-        id_to_username = dict(zip(mapping_df['user_id'].astype(str), mapping_df['username']))
+        id_to_username = dict(
+            zip(mapping_df["user_id"].astype(str), mapping_df["username"])
+        )
 
         print(f"    Loaded {len(id_to_username)} user ID mappings")
         return id_to_username
@@ -213,9 +181,9 @@ def process_scores(input_file, output_dir, use_user_ids=False):
 
     # Apply transformations
     transformations = {
-        'sqrt': apply_sqrt_transformation,
-        'log': apply_log_transformation,
-        'quantile': apply_quantile_transformation
+        "sqrt": apply_sqrt_transformation,
+        "log": apply_log_transformation,
+        "quantile": apply_quantile_transformation,
     }
 
     base_name = Path(input_file).stem
@@ -227,22 +195,31 @@ def process_scores(input_file, output_dir, use_user_ids=False):
 
         # Convert user IDs to usernames by default (unless --use-user-ids flag is passed)
         if not use_user_ids and id_to_username:
-            users_transformed['i'] = users_transformed['i'].astype(str).map(id_to_username).fillna(users_transformed['i'])
-            replaced_count = sum(1 for user_id in df['i'].astype(str) if user_id in id_to_username)
+            users_transformed["i"] = (
+                users_transformed["i"]
+                .astype(str)
+                .map(id_to_username)
+                .fillna(users_transformed["i"])
+            )
+            replaced_count = sum(
+                1 for user_id in df["i"].astype(str) if user_id in id_to_username
+            )
             print(f"    Converted {replaced_count}/{len(df)} user IDs to usernames")
 
         # Sort by score (descending)
-        users_transformed = users_transformed.sort_values('v', ascending=False)
+        users_transformed = users_transformed.sort_values("v", ascending=False)
 
         # Generate output file name
-        users_output = os.path.join(output_dir, f"{base_name}_users_{transform_name}.csv")
+        users_output = os.path.join(
+            output_dir, f"{base_name}_users_{transform_name}.csv"
+        )
 
         # Save the processed file
         users_transformed.to_csv(users_output, index=False)
 
         # Show score ranges
-        users_min = users_transformed['v'].min() if len(users_transformed) > 0 else 0
-        users_max = users_transformed['v'].max() if len(users_transformed) > 0 else 0
+        users_min = users_transformed["v"].min() if len(users_transformed) > 0 else 0
+        users_max = users_transformed["v"].max() if len(users_transformed) > 0 else 0
 
         print(f"  - {transform_name.capitalize()} transformation:")
         print(f"    Users: {len(users_transformed)} entries -> {users_output}")
@@ -254,9 +231,14 @@ def main():
     Main function to process all score files
     """
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Process score files with transformations')
-    parser.add_argument('--use-user-ids', action='store_true',
-                       help='Keep user IDs in output (default: convert to usernames)')
+    parser = argparse.ArgumentParser(
+        description="Process score files with transformations"
+    )
+    parser.add_argument(
+        "--use-user-ids",
+        action="store_true",
+        help="Keep user IDs in output (default: convert to usernames)",
+    )
     args = parser.parse_args()
     # Define directories
     scores_dir = "scores"
