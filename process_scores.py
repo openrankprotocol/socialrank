@@ -7,13 +7,17 @@ This script processes score files from the scores/ directory by:
 2. Treating all peers as Discord users (usernames only)
 3. Applying transformations to make exponential distributions more linear
 4. Normalizing scores so all scores sum to 1
-5. Saving results to output/ directory with transformation suffixes
+5. Saving results to output/ directory as [channel_name].csv
 
 Transformations available:
-- Logarithmic: log transformation (first scaled to 1-100 range) to linearize exponential data
+- Logarithmic (default): log transformation (first scaled to 1-100 range) to linearize exponential data
+- Square root (--sqrt): square root transformation
+- Quantile (--quantile): quantile-based uniform distribution transformation
 
 Usage:
-    python3 process_scores.py
+    python3 process_scores.py               # Uses log transformation (default)
+    python3 process_scores.py --sqrt        # Uses square root transformation
+    python3 process_scores.py --quantile    # Uses quantile transformation
 
 Requirements:
     - pandas (install with: pip install pandas)
@@ -24,17 +28,16 @@ Requirements:
 Output:
     - Creates output/ directory if it doesn't exist
     - For each input file (e.g., ai.csv), creates:
-      - {filename}_users_log.csv: Users with logarithmic transformation (scaled 1-100 first)
+      - output/ai.csv: Processed scores with selected transformation
     - Scores are normalized and mapped to 0-1000 range, sorted by score (descending)
 """
 
-import os
-import pandas as pd
-import numpy as np
-from pathlib import Path
-import re
 import argparse
+import os
+from pathlib import Path
 
+import numpy as np
+import pandas as pd
 from scipy import stats
 
 
@@ -162,68 +165,57 @@ def load_user_ids_mapping(scores_file):
         return {}
 
 
-def process_scores(input_file, output_dir, use_user_ids=False):
+def process_scores(input_file, output_dir, transform_func, transform_name):
     """
-    Process a single score file by applying transformations and saving
+    Process a single score file by applying transformation and saving
 
     Args:
         input_file (str): Path to input CSV file
         output_dir (str): Directory to save processed files
-        use_user_ids (bool): Whether to replace usernames with user IDs
+        transform_func (callable): Transformation function to apply
+        transform_name (str): Name of the transformation
     """
     # Load the CSV file
     df = pd.read_csv(input_file)
 
-    # Load user ID to username mapping (default behavior)
-    id_to_username = {}
-    if not use_user_ids:
-        id_to_username = load_user_ids_mapping(input_file)
-
-    # Apply transformations
-    transformations = {
-        "sqrt": apply_sqrt_transformation,
-        "log": apply_log_transformation,
-        "quantile": apply_quantile_transformation,
-    }
+    # Load user ID to username mapping
+    id_to_username = load_user_ids_mapping(input_file)
 
     base_name = Path(input_file).stem
-    print(f"Processing {input_file}:")
+    print(f"Processing {input_file} with {transform_name} transformation:")
 
-    for transform_name, transform_func in transformations.items():
-        # Apply transformation to all users
-        users_transformed = transform_func(df.copy())
+    # Apply transformation
+    users_transformed = transform_func(df.copy())
 
-        # Convert user IDs to usernames by default (unless --use-user-ids flag is passed)
-        if not use_user_ids and id_to_username:
-            users_transformed["i"] = (
-                users_transformed["i"]
-                .astype(str)
-                .map(id_to_username)
-                .fillna(users_transformed["i"])
-            )
-            replaced_count = sum(
-                1 for user_id in df["i"].astype(str) if user_id in id_to_username
-            )
-            print(f"    Converted {replaced_count}/{len(df)} user IDs to usernames")
-
-        # Sort by score (descending)
-        users_transformed = users_transformed.sort_values("v", ascending=False)
-
-        # Generate output file name
-        users_output = os.path.join(
-            output_dir, f"{base_name}_users_{transform_name}.csv"
+    # Convert user IDs to usernames
+    if id_to_username:
+        users_transformed["i"] = (
+            users_transformed["i"]
+            .astype(str)
+            .map(id_to_username)
+            .fillna(users_transformed["i"])
         )
+        replaced_count = sum(
+            1 for user_id in df["i"].astype(str) if user_id in id_to_username
+        )
+        print(f"    Converted {replaced_count}/{len(df)} user IDs to usernames")
 
-        # Save the processed file
-        users_transformed.to_csv(users_output, index=False)
+    # Sort by score (descending)
+    users_transformed = users_transformed.sort_values("v", ascending=False)
 
-        # Show score ranges
-        users_min = users_transformed["v"].min() if len(users_transformed) > 0 else 0
-        users_max = users_transformed["v"].max() if len(users_transformed) > 0 else 0
+    # Generate output file name (just channel_name.csv)
+    output_file = os.path.join(output_dir, f"{base_name}.csv")
 
-        print(f"  - {transform_name.capitalize()} transformation:")
-        print(f"    Users: {len(users_transformed)} entries -> {users_output}")
-        print(f"    Score range: {users_min:.2f} - {users_max:.2f}")
+    # Save the processed file
+    users_transformed.to_csv(output_file, index=False)
+
+    # Show score ranges
+    users_min = users_transformed["v"].min() if len(users_transformed) > 0 else 0
+    users_max = users_transformed["v"].max() if len(users_transformed) > 0 else 0
+
+    print(f"    Output: {output_file}")
+    print(f"    Entries: {len(users_transformed)}")
+    print(f"    Score range: {users_min:.2f} - {users_max:.2f}")
 
 
 def main():
@@ -232,14 +224,35 @@ def main():
     """
     # Parse command line arguments
     parser = argparse.ArgumentParser(
-        description="Process score files with transformations"
+        description="Process score files with transformations (default: log)"
     )
-    parser.add_argument(
-        "--use-user-ids",
-        action="store_true",
-        help="Keep user IDs in output (default: convert to usernames)",
+
+    # Create mutually exclusive group for transformation options
+    transform_group = parser.add_mutually_exclusive_group()
+    transform_group.add_argument(
+        "--sqrt", action="store_true", help="Use square root transformation"
     )
+    transform_group.add_argument(
+        "--quantile", action="store_true", help="Use quantile transformation"
+    )
+
     args = parser.parse_args()
+
+    # Determine which transformation to use
+    if args.sqrt:
+        transform_func = apply_sqrt_transformation
+        transform_name = "sqrt"
+    elif args.quantile:
+        transform_func = apply_quantile_transformation
+        transform_name = "quantile"
+    else:
+        # Default to log transformation
+        transform_func = apply_log_transformation
+        transform_name = "log"
+
+    print(f"Using {transform_name} transformation")
+    print()
+
     # Define directories
     scores_dir = "scores"
     output_dir = "output"
@@ -261,7 +274,7 @@ def main():
     # Process each CSV file
     for csv_file in csv_files:
         try:
-            process_scores(str(csv_file), output_dir, args.use_user_ids)
+            process_scores(str(csv_file), output_dir, transform_func, transform_name)
             print()
         except Exception as e:
             print(f"Error processing {csv_file}: {str(e)}")

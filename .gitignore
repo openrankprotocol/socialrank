@@ -3,5 +3,6 @@ raw/**
 scores/**
 output/**
 tmp/**
+ui/**
 
 .env
