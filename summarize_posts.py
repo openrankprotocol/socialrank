@@ -80,6 +80,7 @@ def get_top_messages(db_url: str, channel_id: int, limit: int) -> List[tuple]:
                     FROM socialrank.messages m
                     WHERE m.channel_id = %s
                       AND m.content IS NOT NULL
+                      AND m.message_type = 'MessageType.default'
                     ORDER BY m.timestamp DESC, m.id DESC
                     LIMIT 1000
                 ),
