@@ -18,11 +18,12 @@ Given the set of messages, produce a JSON object containing:
 
 1. "topic"
    → A concise thematic synthesis (maximum 3 sentences) written in a professional but easily digestible and simple form.
-   → The summary should begin with a short introductory phrase in the style of:
-       "Top recent conversations focused on...", 
-       "In recent chats, people have been talking about...", 
-       "Recent discussions are circling around...", etc.
-     (Use a natural variant rather than repeating the same phrase.)
+   → The summary must begin with a short introductory phrase. Here are some examples for inspiration but ***ENSURE YOU NEVER USE THEM VERBATIM***:
+        - "Recent discussions centered on..."
+        - "The community is currently exploring..."
+        - "A key theme emerging lately involves..."
+        - "Much of the recent dialogue highlights..."
+        - "There is growing interest regarding..."
    → Focus entirely on the ideas:
         - key motivations, questions, or pain points
         - notable nuances, tradeoffs, or emerging themes
@@ -139,7 +140,7 @@ def summarize_with_openai(messages: List[str], client: OpenAI,
             resp = client.responses.create(
                 model=model_name,
                 input=prompt,
-                temperature=0.1,
+                temperature=0.6,
                 instructions=summarization_instructions,
                 text={
                     "format": {
