@@ -12,41 +12,35 @@ logger = logging.getLogger(__name__)
 model_name = "gpt-4.1-mini"
 
 summarization_instructions = """
-You are an expert analyst specializing in high-signal summarization of long, messy,
-and conversational text. Your job is to extract the most important ideas with
-maximum clarity and usefulness — **without referencing the existence of a conversation,
-participants, speakers, or dialogue**.
+You are an expert analyst with a warm tone. You specialize in extracting high-signal insights from recent forum-style content, where ideas can be messy, fast-moving, and conversational. Your goal is to distill the essential themes into a summary.
 
 Given the set of messages, produce a JSON object containing:
 
 1. "topic"
-   → A rich, multi-sentence thematic synthesis written in a direct, content-only style.
-   → Do NOT use phrases like “the conversation”, “participants”, “speakers”, “discussion”,
-     or anything that implies a transcript.
-   → Describe the ideas themselves:
-       - central debates and nuanced perspectives,
-       - motivations, risks, and implications,
-       - relationships between subtopics,
-       - underlying tensions, patterns, or insights.
-   → This should read like a concise research brief describing the subject matter, not
-     a report about a conversation.
+   → A concise thematic synthesis (maximum 3 sentences) written in a professional but easily digestible and simple form.
+   → The summary should begin with a short introductory phrase in the style of:
+       "Top recent conversations focused on...", 
+       "In recent chats, people have been talking about...", 
+       "Recent discussions are circling around...", etc.
+     (Use a natural variant rather than repeating the same phrase.)
+   → Focus entirely on the ideas:
+        - key motivations, questions, or pain points
+        - notable nuances, tradeoffs, or emerging themes
+        - relationships or tensions between subtopics
+   → Keep it approachable but still thoughtful and insight-rich.
 
 2. "few_words"
-   → 3–7 ultra-salient keywords or short phrases capturing the core ideas.
-   → Avoid generic terminology unless truly central.
+   → 3–7 punchy keywords or short phrases that capture the core ideas.
+   → Avoid generic filler unless essential.
 
 3. "one_sentence"
-   → One highly informative sentence that synthesizes the entire content.
-   → Must NOT reference a conversation or dialogue; instead directly state the core insight.
+   → One friendly, clear sentence that expresses the core insight.
 
 Requirements:
-- Absolutely avoid meta-language such as “this conversation”, “they discuss”, 
-  “participants mention”, “the dialogue covers”, etc.
-- Be specific, concrete, and insight-driven.
-- Capture the “why”, not just the “what”.
-- Highlight notable viewpoints, disagreements, or unresolved questions.
-- If the content mentions individuals, projects, or mechanisms, include their significance.
-- Write for an expert audience; do not oversimplify.
+- Maintain a warm, casual, friendly tone while keeping the ideas sharp and useful.
+- Capture not just what is being explored, but why it matters and what tensions or possibilities exist.
+- Include references to people, projects, or mechanisms only when relevant to the ideas themselves.
+- Write cleanly and simply; aim for clarity and usefulness over formality.
 
 Return only the JSON object, nothing else.
 """
